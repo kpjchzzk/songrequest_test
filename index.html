@@ -3,41 +3,53 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Satellite 신청곡 리스트 (자동 로딩)</title>
+    <title>BMS 신청곡 리스트 (번호 고정형)</title>
     <style>
         body { font-family: 'Pretendard', sans-serif; padding: 20px; background-color: #f4f7f9; }
-        .container { max-width: 1200px; margin: 0 auto; }
+        .container { max-width: 1300px; margin: 0 auto; }
         h2 { text-align: center; color: #2c3e50; }
         #status { text-align: center; color: #666; margin-bottom: 20px; font-weight: bold; }
         
         .search-container { margin-bottom: 25px; text-align: center; position: sticky; top: 0; background: #f4f7f9; padding: 10px 0; z-index: 100; }
-        #searchInput { width: 90%; max-width: 600px; padding: 15px; border: 2px solid #ddd; border-radius: 30px; outline: none; font-size: 16px; }
+        #searchInput { width: 90%; max-width: 600px; padding: 15px; border: 2px solid #ddd; border-radius: 30px; outline: none; font-size: 16px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
 
         .table-wrapper { background: white; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); overflow: hidden; }
-        table { width: 100%; border-collapse: collapse; }
-        th { background-color: #4A90E2; color: white; padding: 15px; text-align: left; }
-        td { padding: 12px 15px; border-bottom: 1px solid #eee; font-size: 14px; }
+        table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+        th { background-color: #4A90E2; color: white; padding: 15px; text-align: left; font-size: 14px; }
+        td { padding: 12px 15px; border-bottom: 1px solid #eee; font-size: 14px; word-wrap: break-word; }
         tr:hover { background-color: #f9fcff; }
+        
         .center { text-align: center; }
-        .lv-tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-weight: bold; background: #eee; }
+        .lv-tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 12px; min-width: 40px; text-align: center; background: #eee; }
+        
+        .badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; color: white; margin-right: 5px; }
+        .bg-satellite { background-color: #5cacee; }
+        .bg-stella { background-color: #ff6b6b; }
+
+        @media (max-width: 768px) {
+            th:nth-child(1), td:nth-child(1) { width: 60px; }
+            th:nth-child(2), td:nth-child(2) { width: 90px; }
+            th:nth-child(3), td:nth-child(3) { width: 80px; }
+        }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>Satellite 신청곡 전체 리스트</h2>
-    <p id="status">Satellite.html 파일을 읽어오는 중...</p>
+    <h2>BMS 신청곡 리스트</h2>
+    <p id="status">데이터를 불러오는 중...</p>
 
     <div class="search-container">
-        <input type="text" id="searchInput" placeholder="곡명, 아티스트, 레벨로 검색...">
+        <input type="text" id="searchInput" placeholder="곡명, 아티스트, 레벨(sl5, st2 등) 검색...">
     </div>
 
     <div class="table-wrapper">
         <table>
             <thead>
                 <tr>
-                    <th class="center" style="width: 60px;">No.</th>
-                    <th class="center" style="width: 80px;">LV</th>
+                    <th class="center" style="width: 70px;">No.</th>
+                    <th class="center" style="width: 100px;">Table</th>
+                    <th class="center" style="width: 90px;">LV</th>
                     <th>TITLE</th>
                     <th>ARTIST</th>
                 </tr>
@@ -50,62 +62,90 @@
 <script>
     let songData = [];
 
-    // 1. Satellite.html 파일을 읽어와서 파싱하는 함수
-    async function loadSatelliteData() {
-        try {
-            const response = await fetch('Satellite.html'); // 같은 폴더의 파일 호출
-            const text = await response.text();
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(text, 'text/html');
-            
-            // 원본 파일의 테이블 행들 추출
-            const rows = Array.from(doc.querySelectorAll('#table_int tr')).slice(2);
-            
-            songData = rows.map(row => {
-                const tds = row.querySelectorAll('td');
-                if (tds.length < 3 || row.classList.contains('tr_separate')) return null;
-                return {
-                    lv: tds[0].innerText.trim(),
-                    title: tds[1].innerText.trim(),
-                    artist: tds[2].innerText.trim()
-                };
-            }).filter(item => item !== null);
+    // 데이터를 파싱하는 함수
+    function parseTable(text, tableName) {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(text, 'text/html');
+        const rows = Array.from(doc.querySelectorAll('#table_int tr')).slice(2);
+        
+        return rows.map(row => {
+            const tds = row.querySelectorAll('td');
+            if (tds.length < 3 || row.classList.contains('tr_separate')) return null;
+            return {
+                table: tableName,
+                lv: tds[0].innerText.trim(),
+                title: tds[1].innerText.trim(),
+                artist: tds[2].innerText.trim()
+            };
+        }).filter(item => item !== null);
+    }
 
-            document.getElementById('status').innerText = `총 ${songData.length}곡 로드 완료!`;
+    async function loadAllData() {
+        try {
+            // 두 파일을 불러옴
+            const [resSat, resSte] = await Promise.all([
+                fetch('Satellite.html').then(r => r.text()),
+                fetch('Stella.html').then(r => r.text())
+            ]);
+
+            // 각각 파싱
+            const satelliteSongs = parseTable(resSat, 'Satellite');
+            const stellaSongs = parseTable(resSte, 'Stella');
+
+            // 고유 번호(No.) 부여 로직
+            let currentNo = 1;
+            
+            // 1. Satellite에 먼저 번호 부여
+            satelliteSongs.forEach(song => {
+                song.fixedNo = currentNo++;
+            });
+
+            // 2. 이어서 Stella에 번호 부여
+            stellaSongs.forEach(song => {
+                song.fixedNo = currentNo++;
+            });
+
+            // 통합 데이터 생성
+            songData = [...satelliteSongs, ...stellaSongs];
+
+            document.getElementById('status').innerText = `총 ${songData.length}곡 로드 완료! (Satellite: ${satelliteSongs.length}, Stella: ${stellaSongs.length})`;
             renderTable(songData);
         } catch (error) {
-            document.getElementById('status').innerText = "파일을 불러오지 못했습니다. Satellite.html이 같은 곳에 있는지 확인해주세요.";
+            document.getElementById('status').innerText = "파일을 불러오는 데 실패했습니다. GitHub에 두 파일이 있는지 확인해 주세요.";
             console.error(error);
         }
     }
 
-    // 2. 표 그리기 함수
     function renderTable(data) {
         const tableBody = document.getElementById('tableBody');
-        tableBody.innerHTML = data.map((s, i) => `
-            <tr>
-                <td class="center" style="color:#999;">${i + 1}</td>
-                <td class="center"><span class="lv-tag">${s.lv}</span></td>
-                <td><b>${s.title}</b></td>
-                <td style="color:#666;">${s.artist}</td>
-            </tr>
-        `).join('');
+        // i(인덱스) 대신 song.fixedNo를 사용하여 번호를 출력
+        tableBody.innerHTML = data.map((s) => {
+            const tableClass = s.table === 'Satellite' ? 'bg-satellite' : 'bg-stella';
+            return `
+                <tr>
+                    <td class="center" style="color:#999; font-weight:bold;">${s.fixedNo}</td>
+                    <td class="center"><span class="badge ${tableClass}">${s.table}</span></td>
+                    <td class="center"><span class="lv-tag">${s.lv}</span></td>
+                    <td><b>${s.title}</b></td>
+                    <td style="color:#666;">${s.artist}</td>
+                </tr>
+            `;
+        }).join('');
     }
 
-    // 3. 검색 기능
     document.getElementById('searchInput').addEventListener('keyup', (e) => {
         const query = e.target.value.toLowerCase();
         const filtered = songData.filter(s => 
             s.title.toLowerCase().includes(query) || 
             s.artist.toLowerCase().includes(query) || 
-            s.lv.toLowerCase().includes(query)
+            s.lv.toLowerCase().includes(query) ||
+            s.table.toLowerCase().includes(query)
         );
         renderTable(filtered);
         document.getElementById('status').innerText = `검색 결과: ${filtered.length}곡`;
     });
 
-    // 실행
-    loadSatelliteData();
+    loadAllData();
 </script>
 
 </body>
