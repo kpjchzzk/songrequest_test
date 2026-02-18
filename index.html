@@ -2,86 +2,100 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BMS 신청곡 리스트 (통합 버전)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>BMS 신청곡 리스트</title>
     <style>
-        body { font-family: 'Pretendard', sans-serif; padding: 20px; background-color: #f4f7f9; }
+        body { font-family: 'Pretendard', sans-serif; padding: 10px; background-color: #f4f7f9; margin: 0; }
         .container { max-width: 1300px; margin: 0 auto; }
-        h2 { text-align: center; color: #2c3e50; }
-        #status { text-align: center; color: #666; margin-bottom: 20px; font-weight: bold; }
+        h2 { text-align: center; color: #2c3e50; font-size: 1.2rem; margin: 15px 0; }
+        #status { text-align: center; color: #666; margin-bottom: 15px; font-size: 0.85rem; font-weight: bold; }
         
+        /* 필터 및 검색창 영역 */
         .filter-container { 
-            margin-bottom: 25px; 
+            margin-bottom: 15px; 
             display: flex; 
             justify-content: center; 
-            gap: 10px; 
+            gap: 8px; 
             position: sticky; 
             top: 0; 
             background: #f4f7f9; 
-            padding: 15px 0; 
+            padding: 10px 0; 
             z-index: 100; 
         }
-        #searchInput { width: 60%; max-width: 500px; padding: 12px 20px; border: 2px solid #ddd; border-radius: 30px; outline: none; font-size: 16px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
-        #lvFilter { padding: 10px 15px; border: 2px solid #ddd; border-radius: 20px; outline: none; cursor: pointer; background: white; }
+        #searchInput { flex: 1; max-width: 400px; padding: 10px 15px; border: 2px solid #ddd; border-radius: 20px; outline: none; font-size: 14px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        #lvFilter { width: 100px; padding: 10px 5px; border: 2px solid #ddd; border-radius: 15px; outline: none; cursor: pointer; background: white; font-size: 13px; }
 
-        .table-wrapper { background: white; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); overflow: hidden; }
+        /* 테이블 공통 스타일 */
+        .table-wrapper { background: white; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); overflow: hidden; }
         table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-        th { background-color: #4A90E2; color: white; padding: 15px; text-align: left; font-size: 14px; }
-        td { padding: 12px 15px; border-bottom: 1px solid #eee; font-size: 14px; word-wrap: break-word; }
+        th { background-color: #4A90E2; color: white; padding: 10px 5px; text-align: left; font-size: 12px; }
+        td { padding: 10px 5px; border-bottom: 1px solid #eee; font-size: 13px; 
+             white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         tr:hover { background-color: #f9fcff; }
         
         .center { text-align: center; }
-        .lv-tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 12px; min-width: 45px; text-align: center; background: #eee; }
+        .lv-tag { display: inline-block; padding: 2px 4px; border-radius: 4px; font-weight: bold; font-size: 11px; min-width: 35px; text-align: center; background: #eee; }
         
-        .badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; color: white; margin-right: 5px; }
+        .badge { display: inline-block; padding: 2px 5px; border-radius: 4px; font-size: 10px; font-weight: bold; color: white; min-width: 25px; text-align: center; }
         .bg-satellite { background-color: #5cacee; }
         .bg-stella { background-color: #ff6b6b; }
-        .bg-insane { background-color: #a040f0; } /* Insane 보라색 계열 */
+        .bg-insane { background-color: #a040f0; }
 
-        .copyable { cursor: pointer; transition: color 0.2s; position: relative; }
-        .copyable:hover { color: #4A90E2; text-decoration: underline; }
-        
+        .copyable { cursor: pointer; color: #222; }
+        .copyable b { display: block; overflow: hidden; text-overflow: ellipsis; }
+        .artist-text { color: #888; font-size: 11px; display: block; overflow: hidden; text-overflow: ellipsis; }
+
+        /* 열 너비 최적화 */
+        .col-no { width: 45px; }    /* No. */
+        .col-table { width: 40px; } /* Table (sl, st, ★) */
+        .col-lv { width: 50px; }    /* LV */
+        .col-title { width: auto; }  /* Title */
+        .col-artist { width: 25%; } /* Artist */
+
+        @media (max-width: 768px) {
+            body { padding: 5px; }
+            th, td { padding: 8px 4px; }
+            .col-no { width: 35px; }
+            .col-table { width: 35px; }
+            .col-lv { width: 45px; }
+            td { font-size: 12px; }
+            .artist-text { font-size: 10px; }
+        }
+
+        /* 복사 알림 토스트 */
         #toast {
-            visibility: hidden; min-width: 200px; background-color: #333; color: #fff; text-align: center;
-            border-radius: 8px; padding: 12px; position: fixed; z-index: 1000; left: 50%; bottom: 30px;
-            transform: translateX(-50%); font-size: 14px;
+            visibility: hidden; min-width: 160px; background-color: rgba(0,0,0,0.8); color: #fff; text-align: center;
+            border-radius: 20px; padding: 10px; position: fixed; z-index: 1000; left: 50%; bottom: 50px;
+            transform: translateX(-50%); font-size: 12px;
         }
         #toast.show { visibility: visible; animation: fadein 0.5s, fadeout 0.5s 1.5s; }
 
-        @keyframes fadein { from {bottom: 0; opacity: 0;} to {bottom: 30px; opacity: 1;} }
-        @keyframes fadeout { from {bottom: 30px; opacity: 1;} to {bottom: 0; opacity: 0;} }
-
-        @media (max-width: 768px) {
-            .filter-container { flex-direction: column; align-items: center; }
-            #searchInput { width: 90%; }
-            th:nth-child(1), td:nth-child(1) { width: 50px; }
-            th:nth-child(2), td:nth-child(2) { width: 85px; }
-            th:nth-child(3), td:nth-child(3) { width: 75px; }
-        }
+        @keyframes fadein { from {bottom: 0; opacity: 0;} to {bottom: 50px; opacity: 1;} }
+        @keyframes fadeout { from {bottom: 50px; opacity: 1;} to {bottom: 0; opacity: 0;} }
     </style>
 </head>
 <body>
 
 <div class="container">
     <h2>BMS 신청곡 리스트</h2>
-    <p id="status">데이터 로딩 중...</p>
+    <p id="status">로딩 중...</p>
 
     <div class="filter-container">
         <select id="lvFilter">
-            <option value="all">전체 LV 보기</option>
+            <option value="all">전체 LV</option>
         </select>
-        <input type="text" id="searchInput" placeholder="곡명 또는 아티스트 검색...">
+        <input type="text" id="searchInput" placeholder="검색어 입력...">
     </div>
 
     <div class="table-wrapper">
         <table>
             <thead>
                 <tr>
-                    <th class="center" style="width: 70px;">No.</th>
-                    <th class="center" style="width: 100px;">Table</th>
-                    <th class="center" style="width: 90px;">LV</th>
-                    <th>TITLE (클릭 시 복사)</th>
-                    <th>ARTIST</th>
+                    <th class="center col-no">#</th>
+                    <th class="center col-table">Tbl</th>
+                    <th class="center col-lv">LV</th>
+                    <th class="col-title">TITLE (복사)</th>
+                    <th class="col-artist">ARTIST</th>
                 </tr>
             </thead>
             <tbody id="tableBody"></tbody>
@@ -89,7 +103,7 @@
     </div>
 </div>
 
-<div id="toast">곡명이 복사되었습니다!</div>
+<div id="toast">복사되었습니다!</div>
 
 <script>
     let songData = [];
@@ -97,24 +111,30 @@
     function parseTable(text, tableName) {
         const parser = new DOMParser();
         const doc = parser.parseFromString(text, 'text/html');
-        // 대부분의 BMS 난이도표는 #table_int를 사용하지만, 파일에 따라 다를 수 있습니다.
         const rows = Array.from(doc.querySelectorAll('#table_int tr')).slice(2);
         
+        // 요청하신 짧은 이름 매핑
+        const tableMap = {
+            'Satellite': 'sl',
+            'Stella': 'st',
+            'Insane': '★'
+        };
+
         return rows.map(row => {
             const tds = row.querySelectorAll('td');
             if (tds.length < 3 || row.classList.contains('tr_separate')) return null;
             return {
                 table: tableName,
-                lv: tds[0].innerText.trim(),     // ★1, sl0 등
-                title: tds[1].innerText.trim(),  // 곡명
-                artist: tds[2].innerText.trim()  // 아티스트
+                displayTable: tableMap[tableName] || tableName,
+                lv: tds[0].innerText.trim(),
+                title: tds[1].innerText.trim(),
+                artist: tds[2].innerText.trim()
             };
         }).filter(item => item !== null);
     }
 
     async function loadAllData() {
         try {
-            // Satellite, Stella, Insane 세 파일을 모두 불러옵니다.
             const [resSat, resSte, resIns] = await Promise.all([
                 fetch('Satellite.html').then(r => r.text()),
                 fetch('Stella.html').then(r => r.text()),
@@ -125,7 +145,6 @@
             const stellaSongs = parseTable(resSte, 'Stella');
             const insaneSongs = parseTable(resIns, 'Insane');
 
-            // 고유 번호 부여 (Satellite -> Stella -> Insane 순서)
             let currentNo = 1;
             satelliteSongs.forEach(song => song.fixedNo = currentNo++);
             stellaSongs.forEach(song => song.fixedNo = currentNo++);
@@ -134,10 +153,10 @@
             songData = [...satelliteSongs, ...stellaSongs, ...insaneSongs];
 
             populateLvFilter();
-            document.getElementById('status').innerText = `총 ${songData.length}곡 로드 완료! (Sat: ${satelliteSongs.length}, Ste: ${stellaSongs.length}, Ins: ${insaneSongs.length})`;
+            document.getElementById('status').innerText = `Total: ${songData.length}곡`;
             renderTable(songData);
         } catch (error) {
-            document.getElementById('status').innerText = "파일 로딩 실패. GitHub에 Satellite.html, Stella.html, Insane.html이 모두 있는지 확인하세요.";
+            document.getElementById('status').innerText = "데이터 로드 실패";
             console.error(error);
         }
     }
@@ -145,12 +164,10 @@
     function populateLvFilter() {
         const lvFilter = document.getElementById('lvFilter');
         const uniqueLvs = [...new Set(songData.map(s => s.lv))].sort((a, b) => {
-            // 정렬 로직 (sl, st, ★ 순서)
             const aPrefix = a.charAt(0);
             const bPrefix = b.charAt(0);
             const aNum = parseInt(a.replace(/[^0-9]/g, '')) || 0;
             const bNum = parseInt(b.replace(/[^0-9]/g, '')) || 0;
-            
             if (aPrefix !== bPrefix) return aPrefix.localeCompare(bPrefix);
             return aNum - bNum;
         });
@@ -165,6 +182,7 @@
 
     function renderTable(data) {
         const tableBody = document.getElementById('tableBody');
+
         tableBody.innerHTML = data.map((s) => {
             let tableClass = 'bg-satellite';
             if (s.table === 'Stella') tableClass = 'bg-stella';
@@ -172,24 +190,29 @@
 
             return `
                 <tr>
-                    <td class="center" style="color:#999; font-weight:bold;">${s.fixedNo}</td>
-                    <td class="center"><span class="badge ${tableClass}">${s.table}</span></td>
+                    <td class="center" style="color:#999;">${s.fixedNo}</td>
+                    <td class="center"><span class="badge ${tableClass}">${s.displayTable}</span></td>
                     <td class="center"><span class="lv-tag">${s.lv}</span></td>
                     <td class="copyable" onclick="copyToClipboard('${s.title.replace(/'/g, "\\'")}')">
                         <b>${s.title}</b>
                     </td>
-                    <td style="color:#666;">${s.artist}</td>
+                    <td class="artist-text">${s.artist}</td>
                 </tr>
             `;
         }).join('');
     }
 
     function copyToClipboard(text) {
-        navigator.clipboard.writeText(text).then(() => {
-            const toast = document.getElementById("toast");
-            toast.className = "show";
-            setTimeout(() => { toast.className = toast.className.replace("show", ""); }, 2000);
-        });
+        const el = document.createElement('textarea');
+        el.value = text;
+        document.body.appendChild(el);
+        el.select();
+        document.execCommand('copy');
+        document.body.removeChild(el);
+        
+        const toast = document.getElementById("toast");
+        toast.className = "show";
+        setTimeout(() => { toast.className = toast.className.replace("show", ""); }, 2000);
     }
 
     function updateDisplay() {
@@ -203,7 +226,6 @@
         });
 
         renderTable(filtered);
-        document.getElementById('status').innerText = `검색 결과: ${filtered.length}곡`;
     }
 
     document.getElementById('searchInput').addEventListener('keyup', updateDisplay);
