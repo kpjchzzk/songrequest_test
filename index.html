@@ -3,10 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>김편집의 BMS 신청곡 리스트</title>
+    <title>BMS 신청곡 리스트</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.6.2/sql-wasm.js"></script>
     <style>
-        /* CSS는 이전과 동일하게 유지하여 디자인 일관성을 지킵니다 */
         body { font-family: 'Pretendard', sans-serif; padding: 10px; background-color: #f4f7f9; margin: 0; }
         .container { max-width: 1300px; margin: 0 auto; }
         h2 { text-align: center; color: #2c3e50; font-size: 1.2rem; margin: 15px 0; }
@@ -24,10 +23,11 @@
             z-index: 100; 
         }
         .search-row { display: flex; justify-content: center; gap: 8px; width: 100%; max-width: 600px; }
-        #searchInput { flex: 1; padding: 12px 20px; border: 2px solid #ddd; border-radius: 25px; outline: none; font-size: 14px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        #searchInput { flex: 1; padding: 12px 20px; border: 2px solid #ddd; border-radius: 25px; outline: none; font-size: 14px; }
         #lvFilter { width: 110px; padding: 10px 5px; border: 2px solid #ddd; border-radius: 15px; outline: none; background: white; font-size: 13px; }
         
-        #status { font-size: 12px; color: #4A90E2; font-weight: bold; }
+        .db-row { font-size: 12px; color: #666; display: flex; align-items: center; gap: 10px; }
+        #status { font-weight: bold; color: #4A90E2; }
 
         .table-wrapper { background: white; border-radius: 10px; box-shadow: 0 2px 15px rgba(0,0,0,0.05); overflow: hidden; }
         table { width: 100%; border-collapse: collapse; table-layout: fixed; }
@@ -37,12 +37,12 @@
         
         .center { text-align: center; }
         .lv-tag { display: inline-block; padding: 2px 4px; border-radius: 4px; font-weight: bold; font-size: 10px; min-width: 38px; text-align: center; background: #eee; }
-        
         .badge { display: inline-block; padding: 2px 5px; border-radius: 4px; font-size: 9px; font-weight: bold; color: white; min-width: 20px; text-align: center; }
         .bg-satellite { background-color: #5cacee; }
         .bg-stella { background-color: #ff6b6b; }
         .bg-insane { background-color: #a040f0; }
 
+        /* 클리어 램프 */
         .lamp { display: inline-block; padding: 2px 4px; border-radius: 3px; font-size: 9px; font-weight: 800; color: white; text-align: center; min-width: 48px; }
         .lamp-0 { background-color: #adb5bd; } 
         .lamp-1 { background-color: #e74c3c; } 
@@ -62,11 +62,7 @@
         .col-lv { width: 48px; }
         .col-artist { width: 22%; }
 
-        @media (max-width: 768px) {
-            .col-artist { display: none; }
-            td { font-size: 12px; }
-        }
-
+        @media (max-width: 768px) { .col-artist { display: none; } td { font-size: 12px; } }
         #toast { visibility: hidden; min-width: 160px; background-color: rgba(0,0,0,0.8); color: #fff; text-align: center; border-radius: 20px; padding: 10px; position: fixed; z-index: 1000; left: 50%; bottom: 50px; transform: translateX(-50%); font-size: 12px; }
         #toast.show { visibility: visible; animation: fadein 0.5s, fadeout 0.5s 1.5s; }
         @keyframes fadein { from {bottom: 0; opacity: 0;} to {bottom: 50px; opacity: 1;} }
@@ -83,7 +79,11 @@
             <select id="lvFilter"><option value="all">전체 LV</option></select>
             <input type="text" id="searchInput" placeholder="곡 제목 또는 아티스트 검색...">
         </div>
-        <div id="status">김편집의 기록 동기화 중...</div>
+        <div class="db-row">
+            <span>스코어 데이터 (.db):</span>
+            <input type="file" id="scoreFileInput" accept=".db">
+            <span id="status">로딩 중...</span>
+        </div>
     </div>
 
     <div class="table-wrapper">
@@ -94,7 +94,7 @@
                     <th class="center col-lamp">CLEAR</th>
                     <th class="center col-table">Tbl</th>
                     <th class="center col-lv">LV</th>
-                    <th class="col-title">TITLE (클릭 시 복사)</th>
+                    <th class="col-title">TITLE (복사)</th>
                     <th class="col-artist">ARTIST</th>
                 </tr>
             </thead>
@@ -107,44 +107,20 @@
 
 <script>
     let songData = [];
-    let scoreMap = new Map();
+    let titleToClearMap = new Map(); // 곡명 -> 클리어 상태
     const tableMap = { 'Satellite': 'sl', 'Stella': 'st', 'Insane': '★' };
     const lampNames = ["NO PLAY", "FAILED", "A-CLEAR", "E-CLEAR", "CLEAR", "H-CLEAR", "XH-CLEAR", "F-COMBO"];
-    const md5Regex = /bmsmd5=([a-f0-9]{32})/;
 
-    async function loadScoreDb() {
-        try {
-            const response = await fetch('score.db'); 
-            if (!response.ok) throw new Error("score.db 없음");
-            
-            const buffer = await response.arrayBuffer();
-            const SQL = await initSqlJs({ locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.6.2/sql-wasm.wasm` });
-            const db = new SQL.Database(new Uint8Array(buffer));
-            
-            const results = db.exec("SELECT scorehash, clear FROM score");
-            if (results.length > 0) {
-                results[0].values.forEach(row => {
-                    if (row[0]) scoreMap.set(row[0].toLowerCase(), row[1]);
-                });
-            }
-            return true;
-        } catch (e) {
-            console.error("Score 로드 실패:", e);
-            return false;
-        }
-    }
-
+    // 1. 테이블 파싱 (해시 없이 곡명만 추출)
     function parseTable(text, tableName) {
         if (tableName === 'Insane') {
-            const regex = /\[\s*\d+\s*,\s*"(.*?)"\s*,\s*"(.*?)"\s*,\s*".*?"\s*,\s*"(.*?)"\s*,\s*"(.*?)"/g;
+            const regex = /\[\s*\d+\s*,\s*"(.*?)"\s*,\s*"(.*?)"\s*,\s*".*?"\s*,\s*"(.*?)"/g;
             let matches; const res = [];
             while ((matches = regex.exec(text)) !== null) {
-                const md5 = matches[4].match(md5Regex);
                 res.push({
                     table: tableName, displayTable: tableMap[tableName],
                     lv: matches[1].trim(), title: matches[2].trim(),
-                    artist: matches[3].replace(/<\/?[^>]+(>|$)/g, "").trim(),
-                    hash: md5 ? md5[1] : null
+                    artist: matches[3].replace(/<\/?[^>]+(>|$)/g, "").trim()
                 });
             }
             return res;
@@ -155,20 +131,57 @@
             return rows.map(row => {
                 const tds = row.querySelectorAll('td');
                 if (tds.length < 3 || row.classList.contains('tr_separate')) return null;
-                const link = tds[1].querySelector('a');
-                const md5 = link ? link.href.match(md5Regex) : null;
                 return {
                     table: tableName, displayTable: tableMap[tableName],
                     lv: tds[0].innerText.trim(), title: tds[1].innerText.trim(),
-                    artist: tds[2].innerText.trim(), hash: md5 ? md5[1] : null
+                    artist: tds[2].innerText.trim()
                 };
             }).filter(i => i !== null);
         }
     }
 
+    // 2. DB 파일 로드 및 곡명 매핑
+    document.getElementById('scoreFileInput').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function() {
+            initSqlJs({ locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.6.2/sql-wasm.wasm` }).then(function(SQL) {
+                const db = new SQL.Database(new Uint8Array(reader.result));
+                
+                try {
+                    // music 테이블과 score 테이블을 JOIN하여 제목과 클리어 상태를 가져옵니다.
+                    // (사용하시는 구동기/도구의 DB 스키마에 따라 테이블명이나 컬럼명이 다를 수 있습니다.)
+                    const results = db.exec(`
+                        SELECT music.title, score.clear 
+                        FROM score 
+                        JOIN music ON score.hash = music.hash
+                    `);
+
+                    if (results.length > 0) {
+                        titleToClearMap.clear();
+                        results[0].values.forEach(row => {
+                            if (row[0]) {
+                                // 곡명을 소문자로 변환하고 공백을 제거하여 매칭 확률을 높임
+                                const normalizedTitle = row[0].toLowerCase().trim();
+                                titleToClearMap.set(normalizedTitle, row[1]);
+                            }
+                        });
+                        document.getElementById('status').innerText = `기록 반영 완료! (${titleToClearMap.size}곡)`;
+                        renderTable(songData);
+                    }
+                } catch (err) {
+                    // music 테이블이 없는 경우 scorehash만 있는 기본 구조일 수 있으므로 예외 처리
+                    alert("DB 구조를 분석할 수 없습니다. 곡명 정보가 포함된 DB인지 확인해주세요.");
+                    console.error(err);
+                }
+            });
+        };
+        reader.readAsArrayBuffer(file);
+    });
+
     async function init() {
-        const scoreLoaded = await loadScoreDb();
-        
         try {
             const [resSat, resSte, resIns] = await Promise.all([
                 fetch('Satellite.html').then(r => r.text()),
@@ -181,38 +194,26 @@
             const ins = parseTable(resIns, 'Insane');
 
             let num = 1;
-            [...sat, ...ste, ...ins].forEach(s => s.fixedNo = num++);
             songData = [...sat, ...ste, ...ins];
+            songData.forEach(s => s.fixedNo = num++);
 
             populateLvFilter();
             renderTable(songData);
-            
-            // 로드 후 상태 메시지 수정
-            document.getElementById('status').innerText = scoreLoaded ? "● 김편집의 기록이 반영되었습니다." : "○ 기록 파일(score.db)을 찾을 수 없습니다.";
+            document.getElementById('status').innerText = "score.db를 선택해주세요.";
         } catch (e) {
-            document.getElementById('status').innerText = "데이터 로딩 오류 발생";
+            document.getElementById('status').innerText = "데이터 로드 실패";
         }
-    }
-
-    /* 나머지 렌더링 및 복사 함수는 이전과 동일합니다 */
-    function populateLvFilter() {
-        const filter = document.getElementById('lvFilter');
-        const lvs = [...new Set(songData.map(s => s.lv))].sort((a, b) => {
-            const getP = (v) => v.startsWith('sl') ? 1 : (v.startsWith('st') ? 2 : 3);
-            if (getP(a) !== getP(b)) return getP(a) - getP(b);
-            return (parseInt(a.replace(/[^0-9]/g, '')) || 0) - (parseInt(b.replace(/[^0-9]/g, '')) || 0);
-        });
-        lvs.forEach(l => {
-            const opt = document.createElement('option');
-            opt.value = l; opt.textContent = l; filter.appendChild(opt);
-        });
     }
 
     function renderTable(data) {
         const body = document.getElementById('tableBody');
         body.innerHTML = data.map((s) => {
             const tClass = s.table === 'Stella' ? 'bg-stella' : (s.table === 'Insane' ? 'bg-insane' : 'bg-satellite');
-            const clear = s.hash ? (scoreMap.get(s.hash) || 0) : 0;
+            
+            // 곡명 기반 매칭 (소문자/공백 제거 비교)
+            const normalizedTitle = s.title.toLowerCase().trim();
+            const clear = titleToClearMap.get(normalizedTitle) || 0;
+            
             return `
                 <tr>
                     <td class="center" style="color:#999;">${s.fixedNo}</td>
@@ -226,6 +227,20 @@
                 </tr>
             `;
         }).join('');
+    }
+
+    // (populateLvFilter, copyToClipboard, update 등 나머지 함수는 이전과 동일)
+    function populateLvFilter() {
+        const filter = document.getElementById('lvFilter');
+        const lvs = [...new Set(songData.map(s => s.lv))].sort((a, b) => {
+            const getP = (v) => v.startsWith('sl') ? 1 : (v.startsWith('st') ? 2 : 3);
+            if (getP(a) !== getP(b)) return getP(a) - getP(b);
+            return (parseInt(a.replace(/[^0-9]/g, '')) || 0) - (parseInt(b.replace(/[^0-9]/g, '')) || 0);
+        });
+        lvs.forEach(l => {
+            const opt = document.createElement('option');
+            opt.value = l; opt.textContent = l; filter.appendChild(opt);
+        });
     }
 
     function copyToClipboard(t) {
