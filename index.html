@@ -3,14 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BMS 신청곡 리스트</title>
+    <title>BMS 신청곡 리스트 (통합 버전)</title>
     <style>
         body { font-family: 'Pretendard', sans-serif; padding: 20px; background-color: #f4f7f9; }
         .container { max-width: 1300px; margin: 0 auto; }
         h2 { text-align: center; color: #2c3e50; }
         #status { text-align: center; color: #666; margin-bottom: 20px; font-weight: bold; }
         
-        /* 필터 영역 */
         .filter-container { 
             margin-bottom: 25px; 
             display: flex; 
@@ -32,18 +31,16 @@
         tr:hover { background-color: #f9fcff; }
         
         .center { text-align: center; }
-        .lv-tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 12px; min-width: 40px; text-align: center; background: #eee; }
+        .lv-tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 12px; min-width: 45px; text-align: center; background: #eee; }
         
         .badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; color: white; margin-right: 5px; }
         .bg-satellite { background-color: #5cacee; }
         .bg-stella { background-color: #ff6b6b; }
+        .bg-insane { background-color: #a040f0; } /* Insane 보라색 계열 */
 
-        /* 곡명 복사 관련 스타일 */
         .copyable { cursor: pointer; transition: color 0.2s; position: relative; }
         .copyable:hover { color: #4A90E2; text-decoration: underline; }
-        .copyable:active { color: #2c3e50; }
         
-        /* 복사 완료 알림 토스트 */
         #toast {
             visibility: hidden; min-width: 200px; background-color: #333; color: #fff; text-align: center;
             border-radius: 8px; padding: 12px; position: fixed; z-index: 1000; left: 50%; bottom: 30px;
@@ -100,6 +97,7 @@
     function parseTable(text, tableName) {
         const parser = new DOMParser();
         const doc = parser.parseFromString(text, 'text/html');
+        // 대부분의 BMS 난이도표는 #table_int를 사용하지만, 파일에 따라 다를 수 있습니다.
         const rows = Array.from(doc.querySelectorAll('#table_int tr')).slice(2);
         
         return rows.map(row => {
@@ -107,49 +105,51 @@
             if (tds.length < 3 || row.classList.contains('tr_separate')) return null;
             return {
                 table: tableName,
-                lv: tds[0].innerText.trim(),
-                title: tds[1].innerText.trim(),
-                artist: tds[2].innerText.trim()
+                lv: tds[0].innerText.trim(),     // ★1, sl0 등
+                title: tds[1].innerText.trim(),  // 곡명
+                artist: tds[2].innerText.trim()  // 아티스트
             };
         }).filter(item => item !== null);
     }
 
     async function loadAllData() {
         try {
-            const [resSat, resSte] = await Promise.all([
+            // Satellite, Stella, Insane 세 파일을 모두 불러옵니다.
+            const [resSat, resSte, resIns] = await Promise.all([
                 fetch('Satellite.html').then(r => r.text()),
-                fetch('Stella.html').then(r => r.text())
+                fetch('Stella.html').then(r => r.text()),
+                fetch('Insane.html').then(r => r.text())
             ]);
 
             const satelliteSongs = parseTable(resSat, 'Satellite');
             const stellaSongs = parseTable(resSte, 'Stella');
+            const insaneSongs = parseTable(resIns, 'Insane');
 
+            // 고유 번호 부여 (Satellite -> Stella -> Insane 순서)
             let currentNo = 1;
             satelliteSongs.forEach(song => song.fixedNo = currentNo++);
             stellaSongs.forEach(song => song.fixedNo = currentNo++);
+            insaneSongs.forEach(song => song.fixedNo = currentNo++);
 
-            songData = [...satelliteSongs, ...stellaSongs];
+            songData = [...satelliteSongs, ...stellaSongs, ...insaneSongs];
 
-            // LV 필터 드롭다운 동적 생성
             populateLvFilter();
-
-            document.getElementById('status').innerText = `총 ${songData.length}곡 로드 완료! (Satellite: ${satelliteSongs.length}, Stella: ${stellaSongs.length})`;
+            document.getElementById('status').innerText = `총 ${songData.length}곡 로드 완료! (Sat: ${satelliteSongs.length}, Ste: ${stellaSongs.length}, Ins: ${insaneSongs.length})`;
             renderTable(songData);
         } catch (error) {
-            document.getElementById('status').innerText = "파일을 불러오지 못했습니다.";
+            document.getElementById('status').innerText = "파일 로딩 실패. GitHub에 Satellite.html, Stella.html, Insane.html이 모두 있는지 확인하세요.";
             console.error(error);
         }
     }
 
     function populateLvFilter() {
         const lvFilter = document.getElementById('lvFilter');
-        // 중복 제거 및 정렬된 LV 리스트 생성
         const uniqueLvs = [...new Set(songData.map(s => s.lv))].sort((a, b) => {
-            // sl0, sl1... st0, st1 순서 정렬을 위한 로직
-            const aPrefix = a.substring(0, 2);
-            const bPrefix = b.substring(0, 2);
-            const aNum = parseInt(a.substring(2)) || 0;
-            const bNum = parseInt(b.substring(2)) || 0;
+            // 정렬 로직 (sl, st, ★ 순서)
+            const aPrefix = a.charAt(0);
+            const bPrefix = b.charAt(0);
+            const aNum = parseInt(a.replace(/[^0-9]/g, '')) || 0;
+            const bNum = parseInt(b.replace(/[^0-9]/g, '')) || 0;
             
             if (aPrefix !== bPrefix) return aPrefix.localeCompare(bPrefix);
             return aNum - bNum;
@@ -166,7 +166,10 @@
     function renderTable(data) {
         const tableBody = document.getElementById('tableBody');
         tableBody.innerHTML = data.map((s) => {
-            const tableClass = s.table === 'Satellite' ? 'bg-satellite' : 'bg-stella';
+            let tableClass = 'bg-satellite';
+            if (s.table === 'Stella') tableClass = 'bg-stella';
+            if (s.table === 'Insane') tableClass = 'bg-insane';
+
             return `
                 <tr>
                     <td class="center" style="color:#999; font-weight:bold;">${s.fixedNo}</td>
@@ -181,7 +184,6 @@
         }).join('');
     }
 
-    // 클립보드 복사 함수
     function copyToClipboard(text) {
         navigator.clipboard.writeText(text).then(() => {
             const toast = document.getElementById("toast");
@@ -190,7 +192,6 @@
         });
     }
 
-    // 필터링 통합 함수
     function updateDisplay() {
         const searchText = document.getElementById('searchInput').value.toLowerCase();
         const selectedLv = document.getElementById('lvFilter').value;
