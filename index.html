@@ -8,29 +8,33 @@
         body { font-family: 'Pretendard', sans-serif; padding: 10px; background-color: #f4f7f9; margin: 0; position: relative; }
         .container { max-width: 1300px; margin: 0 auto; }
         
-        /* 빌드 번호 스타일 */
-        .build-ver { 
-            position: absolute; 
-            top: 10px; 
-            right: 15px; 
-            font-size: 10px; 
-            color: #aaa; 
-            pointer-events: none;
+        /* 빌드 번호 */
+        .build-ver { position: absolute; top: 10px; right: 15px; font-size: 10px; color: #aaa; pointer-events: none; }
+        h2 { text-align: center; color: #2c3e50; font-size: 1.5rem; margin: 15px 0 5px 0; }
+        
+        /* 주의사항 스타일 */
+        .notice-box {
+            background: #fff; border: 1px solid #e1e8ed; border-radius: 12px;
+            padding: 15px; margin-bottom: 20px; font-size: 13px; line-height: 1.6; color: #444;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+        .notice-box b { color: #2c3e50; }
+        .notice-box a { color: #4A90E2; text-decoration: none; font-weight: bold; }
+        .notice-box a:hover { text-decoration: underline; }
+        .notice-box ul { margin: 8px 0 0 0; padding-left: 20px; list-style-type: disc; }
+        .notice-box .ref-link { font-weight: normal; font-size: 12px; }
+
+        /* 모바일용 주의사항 토글 버튼 */
+        #noticeToggleBtn {
+            display: none; width: 100%; padding: 10px; margin-bottom: 10px;
+            background: #f1f3f5; border: 1px solid #dee2e6; border-radius: 8px;
+            font-size: 13px; font-weight: bold; color: #495057; cursor: pointer;
         }
 
-        h2 { text-align: center; color: #2c3e50; font-size: 1.2rem; margin: 15px 0; }
-        
         /* 검색 및 필터 영역 */
         .filter-container { 
-            margin-bottom: 15px; 
-            display: flex; 
-            justify-content: center; 
-            gap: 8px; 
-            position: sticky; 
-            top: 0; 
-            background: #f4f7f9; 
-            padding: 10px 0; 
-            z-index: 100; 
+            margin-bottom: 15px; display: flex; justify-content: center; gap: 8px; 
+            position: sticky; top: 0; background: #f4f7f9; padding: 10px 0; z-index: 100; 
         }
         #searchInput { flex: 1; max-width: 400px; padding: 12px 20px; border: 2px solid #ddd; border-radius: 25px; outline: none; font-size: 14px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
         #lvFilter { width: 110px; padding: 10px 5px; border: 2px solid #ddd; border-radius: 15px; outline: none; background: white; font-size: 13px; cursor: pointer; }
@@ -46,19 +50,15 @@
         
         .center { text-align: center; }
         .lv-tag { display: inline-block; padding: 2px 4px; border-radius: 4px; font-weight: bold; font-size: 10px; min-width: 38px; text-align: center; background: #eee; }
-        
-        /* 테이블 배지 (sl, st, ★) */
         .badge { display: inline-block; padding: 2px 5px; border-radius: 4px; font-size: 10px; font-weight: bold; color: white; min-width: 25px; text-align: center; }
         .bg-satellite { background-color: #5cacee; }
         .bg-stella { background-color: #ff6b6b; }
         .bg-insane { background-color: #a040f0; }
 
-        /* 복사 가능 곡명 스타일 */
         .copyable { cursor: pointer; color: #222; font-weight: 600; transition: color 0.2s; }
         .copyable:hover { color: #4A90E2; text-decoration: underline; }
         .artist-text { color: #888; font-size: 11px; }
 
-        /* 열 너비 최적화 */
         .col-no { width: 45px; }
         .col-table { width: 40px; }
         .col-lv { width: 50px; }
@@ -66,6 +66,8 @@
 
         @media (max-width: 768px) {
             .col-artist { display: none; }
+            #noticeToggleBtn { display: block; }
+            #noticeBox { display: none; }
             td { font-size: 12px; }
         }
 
@@ -82,15 +84,26 @@
 </head>
 <body>
 
-<div class="build-ver">v1.0.1</div>
+<div class="build-ver">v1.0.4</div>
 
 <div class="container">
     <h2>BMS 신청곡 리스트</h2>
     
+    <button id="noticeToggleBtn" onclick="toggleNotice()">⚠️ 주의사항 보기/숨기기</button>
+    <div id="noticeBox" class="notice-box">
+        치지직 스트리머 <a href="https://chzzk.naver.com/0f171fd568c130cf09f2d3a641c4cbf1" target="_blank">김편집</a>의 방송 컨텐츠 진행용으로 제작된 선곡표입니다.<br>
+        스트리밍 등의 용도로 사용하시게 될 경우 출처를 명확히 명시해주세요.<br>
+        <br>
+        아래의 BMS 난이도표 테이블을 참고하여 제작되었습니다. (2026년 2월 19일 기준)
+        <ul>
+            <li>Satellite : <a href="https://stellabms.xyz/sl/table.html" target="_blank" class="ref-link">https://stellabms.xyz/sl/table.html</a></li>
+            <li>Stella : <a href="https://stellabms.xyz/st/table.html" target="_blank" class="ref-link">https://stellabms.xyz/st/table.html</a></li>
+            <li>제1발광BMS난이도표 : <a href="https://nekokan.dyndns.info/~lobsak/genocide/insane.html" target="_blank" class="ref-link">https://nekokan.dyndns.info/.../insane.html</a></li>
+        </ul>
+    </div>
+
     <div class="filter-container">
-        <select id="lvFilter">
-            <option value="all">전체 LV</option>
-        </select>
+        <select id="lvFilter"><option value="all">전체 LV</option></select>
         <input type="text" id="searchInput" placeholder="곡 제목 또는 아티스트 검색...">
     </div>
     
@@ -117,6 +130,11 @@
 <script>
     let songData = [];
     const tableMap = { 'Satellite': 'sl', 'Stella': 'st', 'Insane': '★' };
+
+    function toggleNotice() {
+        const box = document.getElementById('noticeBox');
+        box.style.display = (box.style.display === 'block') ? 'none' : 'block';
+    }
 
     function parseTable(text, tableName) {
         if (tableName === 'Insane') {
@@ -178,10 +196,7 @@
             let tableClass = 'bg-satellite';
             if (s.table === 'Stella') tableClass = 'bg-stella';
             if (s.table === 'Insane') tableClass = 'bg-insane';
-
-            // 복사 텍스트 형식: "난이도 곡명"
             const copyValue = `${s.lv} ${s.title}`;
-            // 작은따옴표(')가 포함된 곡명 매칭 오류를 방지하기 위해 이스케이프 처리 강화
             const safeCopyValue = copyValue.replace(/\\/g, "\\\\").replace(/'/g, "\\'").replace(/"/g, "&quot;");
 
             return `
@@ -212,25 +227,15 @@
     }
 
     function copyToClipboard(text) {
-        // 임시 textarea 생성 (가장 확실한 복사 방법)
         const el = document.createElement('textarea');
         el.value = text;
         el.setAttribute('readonly', '');
         el.style.position = 'absolute';
         el.style.left = '-9999px';
         document.body.appendChild(el);
-        
-        // 텍스트 선택 및 복사
-        const selected = document.getSelection().rangeCount > 0 ? document.getSelection().getRangeAt(0) : false;
         el.select();
         document.execCommand('copy');
         document.body.removeChild(el);
-        
-        // 기존 선택 영역 복구
-        if (selected) {
-            document.getSelection().removeAllRanges();
-            document.getSelection().addRange(selected);
-        }
         
         const toast = document.getElementById("toast");
         toast.innerText = `"${text}" 복사 완료!`;
