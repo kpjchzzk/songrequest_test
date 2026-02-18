@@ -4,70 +4,60 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>BMS 신청곡 리스트</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.6.2/sql-wasm.js"></script>
     <style>
         body { font-family: 'Pretendard', sans-serif; padding: 10px; background-color: #f4f7f9; margin: 0; }
         .container { max-width: 1300px; margin: 0 auto; }
         h2 { text-align: center; color: #2c3e50; font-size: 1.2rem; margin: 15px 0; }
         
-        /* 컨트롤 영역: 업로드 버튼 제거 */
-        .controls { 
+        /* 필터 및 검색창 영역 */
+        .filter-container { 
             margin-bottom: 15px; 
             display: flex; 
-            flex-direction: column; 
-            align-items: center; 
-            gap: 10px; 
+            justify-content: center; 
+            gap: 8px; 
             position: sticky; 
             top: 0; 
             background: #f4f7f9; 
             padding: 10px 0; 
             z-index: 100; 
         }
-        .search-row { display: flex; justify-content: center; gap: 8px; width: 100%; max-width: 600px; }
-        #searchInput { flex: 1; padding: 12px 20px; border: 2px solid #ddd; border-radius: 25px; outline: none; font-size: 14px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        #searchInput { flex: 1; max-width: 400px; padding: 12px 20px; border: 2px solid #ddd; border-radius: 25px; outline: none; font-size: 14px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
         #lvFilter { width: 110px; padding: 10px 5px; border: 2px solid #ddd; border-radius: 15px; outline: none; background: white; font-size: 13px; }
-        
-        #status { font-size: 12px; color: #4A90E2; font-weight: bold; }
 
+        #status { text-align: center; font-size: 12px; color: #666; margin-bottom: 10px; }
+
+        /* 테이블 스타일 */
         .table-wrapper { background: white; border-radius: 10px; box-shadow: 0 2px 15px rgba(0,0,0,0.05); overflow: hidden; }
         table { width: 100%; border-collapse: collapse; table-layout: fixed; }
         th { background-color: #4A90E2; color: white; padding: 12px 5px; text-align: left; font-size: 12px; }
-        td { padding: 10px 5px; border-bottom: 1px solid #eee; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        td { padding: 12px 5px; border-bottom: 1px solid #eee; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         tr:hover { background-color: #f9fcff; }
         
         .center { text-align: center; }
         .lv-tag { display: inline-block; padding: 2px 4px; border-radius: 4px; font-weight: bold; font-size: 10px; min-width: 38px; text-align: center; background: #eee; }
         
-        .badge { display: inline-block; padding: 2px 5px; border-radius: 4px; font-size: 9px; font-weight: bold; color: white; min-width: 20px; text-align: center; }
+        /* 테이블 배지 (sl, st, ★) */
+        .badge { display: inline-block; padding: 2px 5px; border-radius: 4px; font-size: 10px; font-weight: bold; color: white; min-width: 25px; text-align: center; }
         .bg-satellite { background-color: #5cacee; }
         .bg-stella { background-color: #ff6b6b; }
         .bg-insane { background-color: #a040f0; }
 
-        /* 클리어 램프 색상 설정 */
-        .lamp { display: inline-block; padding: 2px 4px; border-radius: 3px; font-size: 9px; font-weight: 800; color: white; text-align: center; min-width: 48px; }
-        .lamp-0 { background-color: #adb5bd; } /* NO PLAY */
-        .lamp-1 { background-color: #e74c3c; } /* FAILED */
-        .lamp-2 { background-color: #9b59b6; } /* ASSIST */
-        .lamp-3 { background-color: #2ecc71; } /* EASY */
-        .lamp-4 { background-color: #3498db; } /* NORMAL */
-        .lamp-5 { background-color: #495057; } /* HARD */
-        .lamp-6 { background-color: #f1c40f; color: #333; } /* EXHARD */
-        .lamp-7 { background-color: #ff85a2; } /* FULL COMBO */
-
         .copyable { cursor: pointer; color: #222; font-weight: 600; }
+        .copyable:hover { color: #4A90E2; text-decoration: underline; }
         .artist-text { color: #888; font-size: 11px; }
 
-        .col-no { width: 40px; }
-        .col-lamp { width: 65px; }
-        .col-table { width: 35px; }
-        .col-lv { width: 48px; }
-        .col-artist { width: 22%; }
+        /* 열 너비 최적화 */
+        .col-no { width: 45px; }
+        .col-table { width: 40px; }
+        .col-lv { width: 50px; }
+        .col-artist { width: 25%; }
 
         @media (max-width: 768px) {
-            .col-artist { display: none; }
+            .col-artist { display: none; } /* 모바일에서 아티스트 숨김 */
             td { font-size: 12px; }
         }
 
+        /* 복사 알림 토스트 */
         #toast { visibility: hidden; min-width: 160px; background-color: rgba(0,0,0,0.8); color: #fff; text-align: center; border-radius: 20px; padding: 10px; position: fixed; z-index: 1000; left: 50%; bottom: 50px; transform: translateX(-50%); font-size: 12px; }
         #toast.show { visibility: visible; animation: fadein 0.5s, fadeout 0.5s 1.5s; }
         @keyframes fadein { from {bottom: 0; opacity: 0;} to {bottom: 50px; opacity: 1;} }
@@ -79,20 +69,20 @@
 <div class="container">
     <h2>BMS 신청곡 리스트</h2>
     
-    <div class="controls">
-        <div class="search-row">
-            <select id="lvFilter"><option value="all">전체 LV</option></select>
-            <input type="text" id="searchInput" placeholder="곡 제목 또는 아티스트 검색...">
-        </div>
-        <div id="status">김편집의 기록 동기화 중...</div>
+    <div class="filter-container">
+        <select id="lvFilter">
+            <option value="all">전체 LV</option>
+        </select>
+        <input type="text" id="searchInput" placeholder="곡 제목 또는 아티스트 검색...">
     </div>
+    
+    <div id="status">로딩 중...</div>
 
     <div class="table-wrapper">
         <table>
             <thead>
                 <tr>
                     <th class="center col-no">#</th>
-                    <th class="center col-lamp">CLEAR</th>
                     <th class="center col-table">Tbl</th>
                     <th class="center col-lv">LV</th>
                     <th class="col-title">TITLE (클릭 시 복사)</th>
@@ -108,43 +98,7 @@
 
 <script>
     let songData = [];
-    let titleToClearMap = new Map();
     const tableMap = { 'Satellite': 'sl', 'Stella': 'st', 'Insane': '★' };
-    const lampNames = ["NO PLAY", "FAILED", "A-CLEAR", "E-CLEAR", "CLEAR", "H-CLEAR", "XH-CLEAR", "F-COMBO"];
-
-    // 1. 서버의 score.db 자동 로드 및 곡명 매핑
-    async function loadScoreDb() {
-        try {
-            const response = await fetch('score.db');
-            if (!response.ok) throw new Error("score.db를 찾을 수 없습니다.");
-            
-            const buffer = await response.arrayBuffer();
-            const SQL = await initSqlJs({ locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.6.2/sql-wasm.wasm` });
-            const db = new SQL.Database(new Uint8Array(buffer));
-            
-            // 곡명(title)과 클리어 기록(clear) 매핑 (곡명 기준)
-            const results = db.exec(`
-                SELECT music.title, score.clear 
-                FROM score 
-                JOIN music ON score.hash = music.hash
-            `);
-
-            if (results.length > 0) {
-                titleToClearMap.clear();
-                results[0].values.forEach(row => {
-                    if (row[0]) {
-                        const normalizedTitle = row[0].toLowerCase().trim();
-                        titleToClearMap.set(normalizedTitle, row[1]);
-                    }
-                });
-                return true;
-            }
-            return false;
-        } catch (e) {
-            console.error("DB 로드 에러:", e);
-            return false;
-        }
-    }
 
     function parseTable(text, tableName) {
         if (tableName === 'Insane') {
@@ -175,8 +129,6 @@
     }
 
     async function init() {
-        const scoreLoaded = await loadScoreDb();
-        
         try {
             const [resSat, resSte, resIns] = await Promise.all([
                 fetch('Satellite.html').then(r => r.text()),
@@ -195,25 +147,24 @@
             populateLvFilter();
             renderTable(songData);
             
-            document.getElementById('status').innerText = scoreLoaded 
-                ? "● 김편집의 기록이 반영되었습니다." 
-                : "○ 기록 데이터(score.db)를 불러오지 못했습니다.";
+            document.getElementById('status').innerText = `총 ${songData.length}곡이 로드되었습니다.`;
         } catch (e) {
-            document.getElementById('status').innerText = "데이터 로딩 오류";
+            document.getElementById('status').innerText = "데이터 로딩 오류가 발생했습니다.";
+            console.error(e);
         }
     }
 
     function renderTable(data) {
         const body = document.getElementById('tableBody');
         body.innerHTML = data.map((s) => {
-            const tClass = s.table === 'Stella' ? 'bg-stella' : (s.table === 'Insane' ? 'bg-insane' : 'bg-satellite');
-            const normalizedTitle = s.title.toLowerCase().trim();
-            const clear = titleToClearMap.get(normalizedTitle) || 0;
+            let tableClass = 'bg-satellite';
+            if (s.table === 'Stella') tableClass = 'bg-stella';
+            if (s.table === 'Insane') tableClass = 'bg-insane';
+
             return `
                 <tr>
-                    <td class="center" style="color:#999;">${s.fixedNo}</td>
-                    <td class="center"><span class="lamp lamp-${clear}">${lampNames[clear]}</span></td>
-                    <td class="center"><span class="badge ${tClass}">${s.displayTable}</span></td>
+                    <td class="center" style="color:#999; font-weight:bold;">${s.fixedNo}</td>
+                    <td class="center"><span class="badge ${tableClass}">${s.displayTable}</span></td>
                     <td class="center"><span class="lv-tag">${s.lv}</span></td>
                     <td class="copyable" onclick="copyToClipboard('${s.title.replace(/'/g, "\\'")}')">
                         <b>${s.title}</b>
