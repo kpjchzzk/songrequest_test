@@ -1,14 +1,3 @@
-// index.html 수정 (UTF-16 LE로 읽기)
-fetch('Insane.html')
-    .then(res => res.arrayBuffer())
-    .then(buffer => {
-        // UTF-16 Little Endian 인코딩 지정
-        const decoder = new TextDecoder('utf-16le'); 
-        const resInsText = decoder.decode(buffer);
-        const insaneSongs = parseTable(resInsText, 'Insane');
-        // ... 나머지 로직
-    });
-
 <!DOCTYPE html>
 <html lang="ko">
 <head>
