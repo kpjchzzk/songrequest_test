@@ -80,4 +80,178 @@
     
     <div class="controls">
         <div class="search-row">
-            <select id="lvFilter"><option value="all">전체 LV</
+            <select id="lvFilter"><option value="all">전체 LV</option></select>
+            <input type="text" id="searchInput" placeholder="곡 제목 또는 아티스트 검색...">
+        </div>
+        <div id="status">김편집의 기록 동기화 중...</div>
+    </div>
+
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th class="center col-no">#</th>
+                    <th class="center col-lamp">CLEAR</th>
+                    <th class="center col-table">Tbl</th>
+                    <th class="center col-lv">LV</th>
+                    <th class="col-title">TITLE (클릭 시 복사)</th>
+                    <th class="col-artist">ARTIST</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+        </table>
+    </div>
+</div>
+
+<div id="toast">곡명이 복사되었습니다!</div>
+
+<script>
+    let songData = [];
+    let scoreMap = new Map();
+    const tableMap = { 'Satellite': 'sl', 'Stella': 'st', 'Insane': '★' };
+    const lampNames = ["NO PLAY", "FAILED", "A-CLEAR", "E-CLEAR", "CLEAR", "H-CLEAR", "XH-CLEAR", "F-COMBO"];
+    const md5Regex = /bmsmd5=([a-f0-9]{32})/;
+
+    async function loadScoreDb() {
+        try {
+            const response = await fetch('score.db'); 
+            if (!response.ok) throw new Error("score.db 없음");
+            
+            const buffer = await response.arrayBuffer();
+            const SQL = await initSqlJs({ locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.6.2/sql-wasm.wasm` });
+            const db = new SQL.Database(new Uint8Array(buffer));
+            
+            const results = db.exec("SELECT scorehash, clear FROM score");
+            if (results.length > 0) {
+                results[0].values.forEach(row => {
+                    if (row[0]) scoreMap.set(row[0].toLowerCase(), row[1]);
+                });
+            }
+            return true;
+        } catch (e) {
+            console.error("Score 로드 실패:", e);
+            return false;
+        }
+    }
+
+    function parseTable(text, tableName) {
+        if (tableName === 'Insane') {
+            const regex = /\[\s*\d+\s*,\s*"(.*?)"\s*,\s*"(.*?)"\s*,\s*".*?"\s*,\s*"(.*?)"\s*,\s*"(.*?)"/g;
+            let matches; const res = [];
+            while ((matches = regex.exec(text)) !== null) {
+                const md5 = matches[4].match(md5Regex);
+                res.push({
+                    table: tableName, displayTable: tableMap[tableName],
+                    lv: matches[1].trim(), title: matches[2].trim(),
+                    artist: matches[3].replace(/<\/?[^>]+(>|$)/g, "").trim(),
+                    hash: md5 ? md5[1] : null
+                });
+            }
+            return res;
+        } else {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(text, 'text/html');
+            const rows = Array.from(doc.querySelectorAll('#table_int tr')).slice(2);
+            return rows.map(row => {
+                const tds = row.querySelectorAll('td');
+                if (tds.length < 3 || row.classList.contains('tr_separate')) return null;
+                const link = tds[1].querySelector('a');
+                const md5 = link ? link.href.match(md5Regex) : null;
+                return {
+                    table: tableName, displayTable: tableMap[tableName],
+                    lv: tds[0].innerText.trim(), title: tds[1].innerText.trim(),
+                    artist: tds[2].innerText.trim(), hash: md5 ? md5[1] : null
+                };
+            }).filter(i => i !== null);
+        }
+    }
+
+    async function init() {
+        const scoreLoaded = await loadScoreDb();
+        
+        try {
+            const [resSat, resSte, resIns] = await Promise.all([
+                fetch('Satellite.html').then(r => r.text()),
+                fetch('Stella.html').then(r => r.text()),
+                fetch('Insane.html').then(r => r.text())
+            ]);
+
+            const sat = parseTable(resSat, 'Satellite');
+            const ste = parseTable(resSte, 'Stella');
+            const ins = parseTable(resIns, 'Insane');
+
+            let num = 1;
+            [...sat, ...ste, ...ins].forEach(s => s.fixedNo = num++);
+            songData = [...sat, ...ste, ...ins];
+
+            populateLvFilter();
+            renderTable(songData);
+            
+            // 로드 후 상태 메시지 수정
+            document.getElementById('status').innerText = scoreLoaded ? "● 김편집의 기록이 반영되었습니다." : "○ 기록 파일(score.db)을 찾을 수 없습니다.";
+        } catch (e) {
+            document.getElementById('status').innerText = "데이터 로딩 오류 발생";
+        }
+    }
+
+    /* 나머지 렌더링 및 복사 함수는 이전과 동일합니다 */
+    function populateLvFilter() {
+        const filter = document.getElementById('lvFilter');
+        const lvs = [...new Set(songData.map(s => s.lv))].sort((a, b) => {
+            const getP = (v) => v.startsWith('sl') ? 1 : (v.startsWith('st') ? 2 : 3);
+            if (getP(a) !== getP(b)) return getP(a) - getP(b);
+            return (parseInt(a.replace(/[^0-9]/g, '')) || 0) - (parseInt(b.replace(/[^0-9]/g, '')) || 0);
+        });
+        lvs.forEach(l => {
+            const opt = document.createElement('option');
+            opt.value = l; opt.textContent = l; filter.appendChild(opt);
+        });
+    }
+
+    function renderTable(data) {
+        const body = document.getElementById('tableBody');
+        body.innerHTML = data.map((s) => {
+            const tClass = s.table === 'Stella' ? 'bg-stella' : (s.table === 'Insane' ? 'bg-insane' : 'bg-satellite');
+            const clear = s.hash ? (scoreMap.get(s.hash) || 0) : 0;
+            return `
+                <tr>
+                    <td class="center" style="color:#999;">${s.fixedNo}</td>
+                    <td class="center"><span class="lamp lamp-${clear}">${lampNames[clear]}</span></td>
+                    <td class="center"><span class="badge ${tClass}">${s.displayTable}</span></td>
+                    <td class="center"><span class="lv-tag">${s.lv}</span></td>
+                    <td class="copyable" onclick="copyToClipboard('${s.title.replace(/'/g, "\\'")}')">
+                        <b>${s.title}</b>
+                    </td>
+                    <td class="artist-text">${s.artist}</td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    function copyToClipboard(t) {
+        const el = document.createElement('textarea');
+        el.value = t; document.body.appendChild(el); el.select();
+        document.execCommand('copy'); document.body.removeChild(el);
+        const toast = document.getElementById("toast");
+        toast.className = "show";
+        setTimeout(() => { toast.className = ""; }, 2000);
+    }
+
+    function update() {
+        const q = document.getElementById('searchInput').value.toLowerCase();
+        const lv = document.getElementById('lvFilter').value;
+        const filtered = songData.filter(s => {
+            const mQ = s.title.toLowerCase().includes(q) || s.artist.toLowerCase().includes(q);
+            const mLv = (lv === 'all' || s.lv === lv);
+            return mQ && mLv;
+        });
+        renderTable(filtered);
+    }
+
+    document.getElementById('searchInput').addEventListener('keyup', update);
+    document.getElementById('lvFilter').addEventListener('change', update);
+    init();
+</script>
+
+</body>
+</html>
