@@ -3,34 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>BMS 신청곡 리스트</title>
+    <title>BMS 신청곡 통합 리스트</title>
     <style>
         body { font-family: 'Pretendard', sans-serif; padding: 10px; background-color: #f4f7f9; margin: 0; }
         .container { max-width: 1300px; margin: 0 auto; }
         h2 { text-align: center; color: #2c3e50; font-size: 1.2rem; margin: 15px 0; }
         #status { text-align: center; color: #666; margin-bottom: 15px; font-size: 0.85rem; font-weight: bold; }
         
-        /* 필터 및 검색창 영역 */
-        .filter-container { 
-            margin-bottom: 15px; 
-            display: flex; 
-            justify-content: center; 
-            gap: 8px; 
-            position: sticky; 
-            top: 0; 
-            background: #f4f7f9; 
-            padding: 10px 0; 
-            z-index: 100; 
-        }
-        #searchInput { flex: 1; max-width: 400px; padding: 10px 15px; border: 2px solid #ddd; border-radius: 20px; outline: none; font-size: 14px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-        #lvFilter { width: 100px; padding: 10px 5px; border: 2px solid #ddd; border-radius: 15px; outline: none; cursor: pointer; background: white; font-size: 13px; }
+        .filter-container { margin-bottom: 15px; display: flex; justify-content: center; gap: 8px; position: sticky; top: 0; background: #f4f7f9; padding: 10px 0; z-index: 100; }
+        #searchInput { flex: 1; max-width: 400px; padding: 10px 15px; border: 2px solid #ddd; border-radius: 20px; outline: none; font-size: 14px; }
+        #lvFilter { width: 110px; padding: 10px 5px; border: 2px solid #ddd; border-radius: 15px; outline: none; background: white; font-size: 13px; }
 
-        /* 테이블 공통 스타일 */
         .table-wrapper { background: white; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); overflow: hidden; }
         table { width: 100%; border-collapse: collapse; table-layout: fixed; }
         th { background-color: #4A90E2; color: white; padding: 10px 5px; text-align: left; font-size: 12px; }
-        td { padding: 10px 5px; border-bottom: 1px solid #eee; font-size: 13px; 
-             white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        td { padding: 10px 5px; border-bottom: 1px solid #eee; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         tr:hover { background-color: #f9fcff; }
         
         .center { text-align: center; }
@@ -42,34 +29,23 @@
         .bg-insane { background-color: #a040f0; }
 
         .copyable { cursor: pointer; color: #222; }
-        .copyable b { display: block; overflow: hidden; text-overflow: ellipsis; }
-        .artist-text { color: #888; font-size: 11px; display: block; overflow: hidden; text-overflow: ellipsis; }
+        .artist-text { color: #888; font-size: 11px; }
 
-        /* 열 너비 최적화 */
-        .col-no { width: 45px; }    /* No. */
-        .col-table { width: 40px; } /* Table (sl, st, ★) */
-        .col-lv { width: 50px; }    /* LV */
-        .col-title { width: auto; }  /* Title */
-        .col-artist { width: 25%; } /* Artist */
+        /* 열 너비 설정 */
+        .col-no { width: 45px; }
+        .col-table { width: 40px; }
+        .col-lv { width: 50px; }
+        .col-artist { width: 25%; }
 
         @media (max-width: 768px) {
-            body { padding: 5px; }
-            th, td { padding: 8px 4px; }
-            .col-no { width: 35px; }
+            .col-no { width: 38px; }
             .col-table { width: 35px; }
             .col-lv { width: 45px; }
             td { font-size: 12px; }
-            .artist-text { font-size: 10px; }
         }
 
-        /* 복사 알림 토스트 */
-        #toast {
-            visibility: hidden; min-width: 160px; background-color: rgba(0,0,0,0.8); color: #fff; text-align: center;
-            border-radius: 20px; padding: 10px; position: fixed; z-index: 1000; left: 50%; bottom: 50px;
-            transform: translateX(-50%); font-size: 12px;
-        }
+        #toast { visibility: hidden; min-width: 160px; background-color: rgba(0,0,0,0.8); color: #fff; text-align: center; border-radius: 20px; padding: 10px; position: fixed; z-index: 1000; left: 50%; bottom: 50px; transform: translateX(-50%); font-size: 12px; }
         #toast.show { visibility: visible; animation: fadein 0.5s, fadeout 0.5s 1.5s; }
-
         @keyframes fadein { from {bottom: 0; opacity: 0;} to {bottom: 50px; opacity: 1;} }
         @keyframes fadeout { from {bottom: 50px; opacity: 1;} to {bottom: 0; opacity: 0;} }
     </style>
@@ -84,7 +60,7 @@
         <select id="lvFilter">
             <option value="all">전체 LV</option>
         </select>
-        <input type="text" id="searchInput" placeholder="검색어 입력...">
+        <input type="text" id="searchInput" placeholder="곡명 또는 아티스트 검색...">
     </div>
 
     <div class="table-wrapper">
@@ -107,30 +83,43 @@
 
 <script>
     let songData = [];
+    const tableMap = { 'Satellite': 'sl', 'Stella': 'st', 'Insane': '★' };
 
     function parseTable(text, tableName) {
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(text, 'text/html');
-        const rows = Array.from(doc.querySelectorAll('#table_int tr')).slice(2);
-        
-        // 요청하신 짧은 이름 매핑
-        const tableMap = {
-            'Satellite': 'sl',
-            'Stella': 'st',
-            'Insane': '★'
-        };
-
-        return rows.map(row => {
-            const tds = row.querySelectorAll('td');
-            if (tds.length < 3 || row.classList.contains('tr_separate')) return null;
-            return {
-                table: tableName,
-                displayTable: tableMap[tableName] || tableName,
-                lv: tds[0].innerText.trim(),
-                title: tds[1].innerText.trim(),
-                artist: tds[2].innerText.trim()
-            };
-        }).filter(item => item !== null);
+        if (tableName === 'Insane') {
+            // Insane.html의 자바스크립트 배열 데이터(mname)를 직접 추출하는 로직
+            const regex = /\[\s*\d+\s*,\s*"(.*?)"\s*,\s*"(.*?)"\s*,\s*".*?"\s*,\s*"(.*?)"\s*,/g;
+            let matches;
+            const results = [];
+            while ((matches = regex.exec(text)) !== null) {
+                // 아티스트 필드의 HTML 태그 제거 및 데이터 매핑
+                const artistClean = matches[3].replace(/<\/?[^>]+(>|$)/g, "").trim();
+                results.push({
+                    table: tableName,
+                    displayTable: tableMap[tableName],
+                    lv: matches[1].trim(),   // ★1 등
+                    title: matches[2].trim(), // Music Title
+                    artist: artistClean      // Original Artist
+                });
+            }
+            return results;
+        } else {
+            // Satellite, Stella 파싱 로직
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(text, 'text/html');
+            const rows = Array.from(doc.querySelectorAll('#table_int tr')).slice(2);
+            return rows.map(row => {
+                const tds = row.querySelectorAll('td');
+                if (tds.length < 3 || row.classList.contains('tr_separate')) return null;
+                return {
+                    table: tableName,
+                    displayTable: tableMap[tableName],
+                    lv: tds[0].innerText.trim(),
+                    title: tds[1].innerText.trim(),
+                    artist: tds[2].innerText.trim()
+                };
+            }).filter(item => item !== null);
+        }
     }
 
     async function loadAllData() {
@@ -145,6 +134,7 @@
             const stellaSongs = parseTable(resSte, 'Stella');
             const insaneSongs = parseTable(resIns, 'Insane');
 
+            // 고유 번호 부여 (Satellite -> Stella -> Insane 순서 고정)
             let currentNo = 1;
             satelliteSongs.forEach(song => song.fixedNo = currentNo++);
             stellaSongs.forEach(song => song.fixedNo = currentNo++);
@@ -153,10 +143,10 @@
             songData = [...satelliteSongs, ...stellaSongs, ...insaneSongs];
 
             populateLvFilter();
-            document.getElementById('status').innerText = `Total: ${songData.length}곡`;
+            document.getElementById('status').innerText = `Total: ${songData.length}곡 로드 완료`;
             renderTable(songData);
         } catch (error) {
-            document.getElementById('status').innerText = "데이터 로드 실패";
+            document.getElementById('status').innerText = "데이터 로드 실패. 파일명을 확인하세요.";
             console.error(error);
         }
     }
@@ -164,12 +154,10 @@
     function populateLvFilter() {
         const lvFilter = document.getElementById('lvFilter');
         const uniqueLvs = [...new Set(songData.map(s => s.lv))].sort((a, b) => {
-            const aPrefix = a.charAt(0);
-            const bPrefix = b.charAt(0);
-            const aNum = parseInt(a.replace(/[^0-9]/g, '')) || 0;
-            const bNum = parseInt(b.replace(/[^0-9]/g, '')) || 0;
-            if (aPrefix !== bPrefix) return aPrefix.localeCompare(bPrefix);
-            return aNum - bNum;
+            // 정렬 순서: sl -> st -> ★ 순서로 배치
+            const getPriority = (v) => v.startsWith('sl') ? 1 : (v.startsWith('st') ? 2 : 3);
+            if (getPriority(a) !== getPriority(b)) return getPriority(a) - getPriority(b);
+            return (parseInt(a.replace(/[^0-9]/g, '')) || 0) - (parseInt(b.replace(/[^0-9]/g, '')) || 0);
         });
 
         uniqueLvs.forEach(lv => {
@@ -182,7 +170,6 @@
 
     function renderTable(data) {
         const tableBody = document.getElementById('tableBody');
-
         tableBody.innerHTML = data.map((s) => {
             let tableClass = 'bg-satellite';
             if (s.table === 'Stella') tableClass = 'bg-stella';
@@ -209,7 +196,6 @@
         el.select();
         document.execCommand('copy');
         document.body.removeChild(el);
-        
         const toast = document.getElementById("toast");
         toast.className = "show";
         setTimeout(() => { toast.className = toast.className.replace("show", ""); }, 2000);
@@ -218,19 +204,16 @@
     function updateDisplay() {
         const searchText = document.getElementById('searchInput').value.toLowerCase();
         const selectedLv = document.getElementById('lvFilter').value;
-
         const filtered = songData.filter(s => {
             const matchesSearch = s.title.toLowerCase().includes(searchText) || s.artist.toLowerCase().includes(searchText);
             const matchesLv = (selectedLv === 'all' || s.lv === selectedLv);
             return matchesSearch && matchesLv;
         });
-
         renderTable(filtered);
     }
 
     document.getElementById('searchInput').addEventListener('keyup', updateDisplay);
     document.getElementById('lvFilter').addEventListener('change', updateDisplay);
-
     loadAllData();
 </script>
 
